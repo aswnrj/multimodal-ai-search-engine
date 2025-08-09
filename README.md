@@ -49,7 +49,7 @@ A sophisticated image search engine that enables both text-to-image and image-to
 
 1. **Clone the repository**
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/aswnrj/multimodal-ai-search-engine.git
 cd multimodal-search-engine
 ```
 
@@ -196,5 +196,3 @@ MIT License - feel free to use this project for educational and research purpose
 Aswin Raj Rajan
 
 ---
-
-*Built with ❤️ using PyTorch, CLIP, and FAISS*
