@@ -1,198 +1,77 @@
-# 🔍 Multimodal AI Search Engine
+# Multimodal AI Search Engine
 
-A sophisticated image search engine that enables both text-to-image and image-to-image similarity search using state-of-the-art deep learning models. Built with CLIP (Contrastive Language-Image Pre-training) and FAISS for efficient vector search.
+A small image search app that takes either a text query ("a red car") or an image, and returns the most similar images from a local dataset. Built on CLIP for the embeddings and FAISS for the lookup, with a Gradio UI on top.
 
-## 🌟 Features
+I built this to learn how CLIP-style models bridge text and images in a shared vector space, and to get hands-on with FAISS. It's a learning project, not a production system — the dataset is intentionally tiny (500 images) so the whole pipeline runs in a few minutes on a laptop.
 
-- **🔤 Text-to-Image Search**: Find images using natural language descriptions
-- **🖼️ Image-to-Image Search**: Upload an image to find visually similar ones  
-- **⚡ Fast Search**: Sub-second query response times using FAISS indexing
-- **🎯 High Accuracy**: Powered by OpenAI's CLIP-ViT-B-32 model
-- **🎨 Modern UI**: Clean, responsive Gradio interface
-- **🚀 GPU Accelerated**: CUDA support for faster inference
+## What it does
 
-## 🏗️ Architecture
+- Type a description, get back the closest matching images.
+- Upload an image, get back visually similar ones from the dataset.
+- Both modes go through the same 512-dim CLIP embedding space, so they share one FAISS index.
 
-```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Text Query    │    │   Image Query    │    │   CLIP Model    │
-│   "red car"     │────▶   [Image.jpg]    │────▶  ViT-B-32      │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-                                                         │
-                                                         ▼
-                                               ┌─────────────────┐
-                                               │   Embeddings    │
-                                               │   512-dim       │
-                                               └─────────────────┘
-                                                         │
-                                                         ▼
-                                               ┌─────────────────┐
-                                               │  FAISS Index    │
-                                               │ Cosine Similarity│
-                                               └─────────────────┘
-                                                         │
-                                                         ▼
-                                               ┌─────────────────┐
-                                               │ Top-K Results   │
-                                               │ + Scores        │
-                                               └─────────────────┘
-```
+The dataset is 500 images sampled from Caltech101 (101 object categories — guitars, cars, dogs, airplanes, etc.).
 
-## 🚀 Quick Start
+## Setup
 
-### Prerequisites
-- Python 3.8+
-- CUDA-capable GPU (recommended, 8GB+ VRAM)
-- 4GB+ RAM
+You'll need Python 3.8+ and a few GB of disk for the model cache. A GPU helps but isn't required — CPU inference for 500 images takes maybe a minute.
 
-### Installation
-
-1. **Clone the repository**
 ```bash
 git clone https://github.com/aswnrj/multimodal-ai-search-engine.git
-cd multimodal-search-engine
-```
-
-2. **Install dependencies**
-```bash
+cd multimodal-ai-search-engine
 pip install -r requirements.txt
 ```
 
-3. **Download and prepare the dataset**
+Then run the three setup scripts in order. They download the dataset, embed the images with CLIP, and build the FAISS index:
+
 ```bash
-python download_images_hf.py
-python embed_images_clip.py
-python build_faiss_index.py
+python download_images_hf.py     # ~500 images into dataset/images/
+python embed_images_clip.py      # writes image_embeddings.npy + image_filenames.npy
+python build_faiss_index.py      # writes faiss_index.bin
 ```
 
-4. **Launch the application**
+Once that's done, launch the app:
+
 ```bash
 python app.py
 ```
 
-The app will be available at `http://localhost:7860`
+It'll be at http://localhost:7860.
 
-## 📊 Dataset
+## How it works
 
-- **Source**: Caltech101 dataset via HuggingFace (`flwrlabs/caltech101`)
-- **Size**: 500 randomly sampled images
-- **Categories**: 101 different object classes
-- **Format**: RGB images, various resolutions
-- **Preprocessing**: Normalized for CLIP compatibility
+CLIP is trained so that an image and a matching caption end up near each other in the same vector space. That means I can encode the dataset images once, encode the query (text or image) at search time, and use cosine similarity to rank matches. FAISS handles the similarity search.
 
-## 🔧 Technical Implementation
+A couple of implementation notes:
 
-### Core Components
+- All embeddings are L2-normalized at encode time, so cosine similarity reduces to a plain inner product. That's why the index is `IndexFlatIP` and not some custom cosine variant.
+- `IndexFlatIP` is exhaustive (brute force). With only 500 vectors that's perfectly fine — at this scale, anything fancier (HNSW, IVF) is wasted complexity. The bottleneck is CLIP encoding the query, not the FAISS lookup.
+- The image filenames are saved as `{idx:05d}_{class_label}.jpg`. `app.py` parses the class label out of the filename when displaying results, so don't rename the files.
 
-1. **Image Embedding** (`embed_images_clip.py`)
-   - Loads images and converts to RGB
-   - Generates 512-dim embeddings using CLIP-ViT-B-32
-   - Applies L2 normalization for cosine similarity
+## File layout
 
-2. **FAISS Indexing** (`build_faiss_index.py`)
-   - Creates IndexFlatIP for inner product search
-   - Optimized for normalized embeddings
-   - Persistent storage for fast loading
+| File | What it does |
+|------|--------------|
+| `download_images_hf.py` | Pulls Caltech101 from HuggingFace and saves 500 shuffled images locally. |
+| `embed_images_clip.py` | Runs every image through CLIP-ViT-B-32 and saves the embeddings + filenames as `.npy` files. |
+| `build_faiss_index.py` | Loads the embeddings, builds an inner-product FAISS index, writes it to disk. |
+| `search_image_and_text.py` | Standalone CLI that does text and image search without the UI. Handy for debugging. |
+| `app.py` | The Gradio web UI. Loads the index and model once at startup. |
+| `requirements.txt` | Dependencies. |
 
-3. **Search Interface** (`search_image_and_text.py`)
-   - Unified search functions for text and image queries
-   - Real-time embedding generation
-   - Efficient similarity computation
+The `dataset/` folder is gitignored — you regenerate it locally with the three scripts above.
 
-4. **Web Interface** (`app.py`)
-   - Modern Gradio-based UI
-   - Dual-mode search (text/image)
-   - Result visualization with similarity scores
+## Stack
 
-### Key Algorithms
+- **CLIP-ViT-B-32** via `sentence-transformers` for embeddings.
+- **FAISS** (CPU build by default; swap to `faiss-gpu` if you want, but at this dataset size it doesn't matter).
+- **Gradio** for the UI.
+- **HuggingFace `datasets`** for pulling Caltech101.
 
-- **CLIP**: Contrastive learning between text and images
-- **Vision Transformer**: Self-attention mechanism for image processing
-- **Cosine Similarity**: Semantic similarity measurement
-- **FAISS IndexFlatIP**: Exhaustive search with inner product
+## License
 
-## 📈 Performance Metrics
+MIT.
 
-| Metric | Value |
-|--------|-------|
-| Search Latency | <100ms |
-| Embedding Dimension | 512 |
-| Index Size | ~1MB (500 images) |
-| Memory Usage | ~2GB (with model) |
-| GPU Utilization | ~1GB VRAM |
-
-## 🛠️ Project Structure
-
-```
-multimodal-search-engine/
-├── dataset/
-│   ├── images/              # Downloaded images
-│   ├── image_embeddings.npy # Precomputed embeddings
-│   ├── image_filenames.npy  # Filename mappings
-│   └── faiss_index.bin      # FAISS search index
-├── download_images_hf.py    # Dataset downloader
-├── embed_images_clip.py     # Embedding generator
-├── build_faiss_index.py     # Index builder
-├── search_image_and_text.py # Search utilities
-├── app.py                   # Gradio web interface
-├── requirements.txt         # Python dependencies
-└── README.md               # Documentation
-```
-
-## 🎯 Use Cases
-
-- **E-commerce**: Product similarity search
-- **Digital Asset Management**: Content organization
-- **Research**: Dataset exploration and analysis  
-- **Education**: Visual learning and discovery
-- **Creative**: Inspiration and mood board creation
-
-## 🔮 Future Enhancements
-
-- [ ] Support for larger datasets (10K+ images)
-- [ ] Multiple CLIP model variants comparison
-- [ ] Advanced filtering options (category, color, etc.)
-- [ ] Batch upload for multiple query images
-- [ ] API endpoints for programmatic access
-- [ ] Similarity threshold tuning
-- [ ] Export search results functionality
-
-## 📚 Dependencies
-
-### Core ML Libraries
-- **PyTorch**: Deep learning framework
-- **Sentence Transformers**: CLIP model interface
-- **FAISS**: Vector similarity search
-- **NumPy**: Numerical computations
-
-### Data & UI
-- **Pillow**: Image processing
-- **Gradio**: Web interface
-- **Datasets**: HuggingFace dataset loading
-- **TQDM**: Progress tracking
-
-## 🏆 Academic Applications
-
-This project demonstrates several key concepts valuable for AI/ML academic programs:
-
-- **Multimodal Learning**: Cross-modal understanding between text and images
-- **Vector Databases**: Efficient similarity search at scale
-- **Transfer Learning**: Leveraging pre-trained models
-- **UI/UX Design**: Making AI accessible through intuitive interfaces
-- **System Architecture**: Building end-to-end ML pipelines
-
-## 📖 References
-
-1. Radford, A., et al. "Learning Transferable Visual Representations from Natural Language Supervision." ICML 2021.
-2. Johnson, J., Douze, M., Jégou, H. "Billion-scale similarity search with GPUs." IEEE Transactions on Big Data 2019.
-3. Fei-Fei, L., Fergus, R., Perona, P. "Learning generative visual models from few training examples." CVPR 2004.
-
-## 📄 License
-
-MIT License - feel free to use this project for educational and research purposes.
-
-## 👨‍💻 Author
+## Author
 
 Aswin Raj Rajan
-
----
