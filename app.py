@@ -1,4 +1,6 @@
 import os
+import subprocess
+import sys
 import time
 import numpy as np
 import faiss
@@ -9,6 +11,11 @@ from sentence_transformers import SentenceTransformer
 META_PATH = "dataset/image_filenames.npy"
 INDEX_PATH = "dataset/faiss_index.bin"
 IMG_DIR = "dataset/images"
+
+if not os.path.exists(INDEX_PATH):
+    print("First run: downloading and indexing the dataset...")
+    for script in ("download_images_hf.py", "embed_images_clip.py", "build_faiss_index.py"):
+        subprocess.run([sys.executable, script], check=True)
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Loading model on {device}")
@@ -80,4 +87,4 @@ with gr.Blocks(title="Multimodal Image Search") as demo:
 
 
 if __name__ == "__main__":
-    demo.launch(server_name="127.0.0.1", server_port=7860)
+    demo.launch(server_name="0.0.0.0", server_port=7860)
