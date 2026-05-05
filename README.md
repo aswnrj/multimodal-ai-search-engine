@@ -1,5 +1,7 @@
 # Multimodal AI Search Engine
 
+[Try the live demo on Hugging Face](https://huggingface.co/spaces/aswnrj/multimodal-ai-search-engine)
+
 A small image search app that takes either a text query ("a red car") or an image, and returns the most similar images from a local dataset. Built on CLIP for the embeddings and FAISS for the lookup, with a Gradio UI on top.
 
 I built this to learn how CLIP-style models bridge text and images in a shared vector space, and to get hands-on with FAISS. It's a learning project, not a production system — the dataset is intentionally tiny (500 images) so the whole pipeline runs in a few minutes on a laptop.
@@ -20,23 +22,10 @@ You'll need Python 3.8+ and a few GB of disk for the model cache. A GPU helps bu
 git clone https://github.com/aswnrj/multimodal-ai-search-engine.git
 cd multimodal-ai-search-engine
 pip install -r requirements.txt
-```
-
-Then run the three setup scripts in order. They download the dataset, embed the images with CLIP, and build the FAISS index:
-
-```bash
-python download_images_hf.py     # ~500 images into dataset/images/
-python embed_images_clip.py      # writes image_embeddings.npy + image_filenames.npy
-python build_faiss_index.py      # writes faiss_index.bin
-```
-
-Once that's done, launch the app:
-
-```bash
 python app.py
 ```
 
-It'll be at http://localhost:7860.
+The first launch takes a few minutes — `app.py` downloads the 500 Caltech101 images, embeds them with CLIP, and builds the FAISS index before starting the UI. After that, subsequent launches are quick. Once it's up, open http://localhost:7860.
 
 ## How it works
 
@@ -59,7 +48,7 @@ A couple of implementation notes:
 | `app.py` | The Gradio web UI. Loads the index and model once at startup. |
 | `requirements.txt` | Dependencies. |
 
-The `dataset/` folder is gitignored — you regenerate it locally with the three scripts above.
+The `dataset/` folder is gitignored — `app.py` regenerates it on first launch by calling the three setup scripts in order.
 
 ## Stack
 
